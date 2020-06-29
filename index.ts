@@ -13,7 +13,8 @@ interface Options {
 
 interface ColumnData {
   name: string,
-  type?: string
+  type?: string,
+  primary?: boolean
 }
 
 interface InsertData {
@@ -36,11 +37,11 @@ class Mysql {
     let statement = `CREATE TABLE IF NOT EXISTS ${this.options.database}.${table_name}`;
     for (let i = 0; i < table_data.length; i++) {
       if (i === table_data.length - 1) {
-        statement += ` ${table_data[i].name} ${table_data[i].type ?? "varchar(120)"})`;
+        statement += ` ${table_data[i].name} ${table_data[i].type ?? "varchar(120)"} ${table_data[i].primary ? "PRIMARY KEY" : ""})`;
       } else if (i === 0) {
-        statement += ` (${table_data[i].name} ${table_data[i].type ?? "varchar(120)"},`;
+        statement += ` (${table_data[i].name} ${table_data[i].type ?? "varchar(120)"} ${table_data[i].primary ? "PRIMARY KEY" : ""},`;
       } else {
-        statement += ` ${table_data[i].name} ${table_data[i].type ?? "varchar(120)"},`;
+        statement += ` ${table_data[i].name} ${table_data[i].type ?? "varchar(120)"} ${table_data[i].primary ? "PRIMARY KEY" : ""},`;
       };
     }
 
@@ -50,7 +51,7 @@ class Mysql {
   async insert(table: string, data: InsertData[]): Promise<any> {
     let values: any = { columns: [], data: [] };
 
-    let query: string = `INSERT INTO ${this.options.database}.${table}`;
+    let query: string = `REPLACE INTO ${this.options.database}.${table}`;
     for (let d of data) {
       if (values.columns.includes(d.column))
         throw new Error(`Column '${d.column}' specified twice.`)
@@ -115,6 +116,44 @@ class Mysql {
 
     query = (await this.db).format(query, values.data);
     
+    return (await this.db).query(query);
+  }
+
+  async update(table: string, data: InsertData[], filter: FilterData[]): Promise<any> {
+    let values: any = { columns: [], data: [], filter: [], r_columns: [], r_data: [] };
+
+    let query: string = `UPDATE ${this.options.database}.${table} SET `;
+    for (let d of filter) {
+      if (values.columns.includes(d.column))
+        throw new Error(`Column '${d.column}' specified twice.`)
+
+      values.columns.push(d.column);
+      values.data.push(d.data);
+      values.filter.push(d.filter_type ?? "AND");
+    }
+
+    for (let d of data) {
+      values.r_columns.push(d.column);
+      values.r_data.push(d.data);
+    }
+
+    let index: number = 0;
+    for (let v of values.r_columns) {
+      query += `${v} = ?${index === values.r_columns.length - 1 ? "" : ","} `;
+      index++;
+    }
+
+    query += 'WHERE ';
+
+    index = 0;
+
+    for (let v of values.columns) {
+      query += `${v} = ? ${index === values.columns.length - 1 ? "" : values.filter[index]} `;
+      index++;
+    }
+
+    query = (await this.db).format(query, values.r_data.concat(values.data));
+
     return (await this.db).query(query);
   }
 };

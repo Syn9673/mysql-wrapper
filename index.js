@@ -34,13 +34,13 @@ class Mysql {
         let statement = `CREATE TABLE IF NOT EXISTS ${this.options.database}.${table_name}`;
         for (let i = 0; i < table_data.length; i++) {
             if (i === table_data.length - 1) {
-                statement += ` ${table_data[i].name} ${(_a = table_data[i].type) !== null && _a !== void 0 ? _a : "varchar(120)"})`;
+                statement += ` ${table_data[i].name} ${(_a = table_data[i].type) !== null && _a !== void 0 ? _a : "varchar(120)"} ${table_data[i].primary ? "PRIMARY KEY" : ""})`;
             }
             else if (i === 0) {
-                statement += ` (${table_data[i].name} ${(_b = table_data[i].type) !== null && _b !== void 0 ? _b : "varchar(120)"},`;
+                statement += ` (${table_data[i].name} ${(_b = table_data[i].type) !== null && _b !== void 0 ? _b : "varchar(120)"} ${table_data[i].primary ? "PRIMARY KEY" : ""},`;
             }
             else {
-                statement += ` ${table_data[i].name} ${(_c = table_data[i].type) !== null && _c !== void 0 ? _c : "varchar(120)"},`;
+                statement += ` ${table_data[i].name} ${(_c = table_data[i].type) !== null && _c !== void 0 ? _c : "varchar(120)"} ${table_data[i].primary ? "PRIMARY KEY" : ""},`;
             }
             ;
         }
@@ -48,7 +48,7 @@ class Mysql {
     }
     async insert(table, data) {
         let values = { columns: [], data: [] };
-        let query = `INSERT INTO ${this.options.database}.${table}`;
+        let query = `REPLACE INTO ${this.options.database}.${table}`;
         for (let d of data) {
             if (values.columns.includes(d.column))
                 throw new Error(`Column '${d.column}' specified twice.`);
@@ -98,6 +98,35 @@ class Mysql {
             index++;
         }
         query = (await this.db).format(query, values.data);
+        return (await this.db).query(query);
+    }
+    async update(table, data, filter) {
+        var _a;
+        let values = { columns: [], data: [], filter: [], r_columns: [], r_data: [] };
+        let query = `UPDATE ${this.options.database}.${table} SET `;
+        for (let d of filter) {
+            if (values.columns.includes(d.column))
+                throw new Error(`Column '${d.column}' specified twice.`);
+            values.columns.push(d.column);
+            values.data.push(d.data);
+            values.filter.push((_a = d.filter_type) !== null && _a !== void 0 ? _a : "AND");
+        }
+        for (let d of data) {
+            values.r_columns.push(d.column);
+            values.r_data.push(d.data);
+        }
+        let index = 0;
+        for (let v of values.r_columns) {
+            query += `${v} = ?${index === values.r_columns.length - 1 ? "" : ","} `;
+            index++;
+        }
+        query += 'WHERE ';
+        index = 0;
+        for (let v of values.columns) {
+            query += `${v} = ? ${index === values.columns.length - 1 ? "" : values.filter[index]} `;
+            index++;
+        }
+        query = (await this.db).format(query, values.r_data.concat(values.data));
         return (await this.db).query(query);
     }
 }
