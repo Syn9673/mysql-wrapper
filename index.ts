@@ -26,11 +26,16 @@ interface FilterData extends InsertData {
   filter_type?: string
 }
 
+const pool_options = {
+  waitForConnections: true,
+  connectionLimit: 20
+};
+
 //what the fuck is a bluebird
 class Mysql {
-  public db: Bluebird<mysql.Connection>;
+  public db: Bluebird<mysql.Pool>;
   constructor(public options: Options = {}) {
-    this.db = mysql.createConnection(options);
+    this.db = mysql.createPool({ ...pool_options, ...this.options});
   }
 
   async create_table(table_name: string, table_data: ColumnData[]): Promise<any> {
@@ -45,7 +50,11 @@ class Mysql {
       };
     }
 
-    (await this.db).query(statement);
+    let connection: mysql.PoolConnection = await (await this.db).getConnection();
+    let result: any = connection.query(statement);
+    connection.release();
+
+    return result;
   }
 
   async insert(table: string, data: InsertData[]): Promise<any> {
@@ -65,10 +74,15 @@ class Mysql {
     // add escaped values
     query += ` VALUES (${values.data.map(() => '?').join(', ')})`;
 
-    // format the query
-    query = (await this.db).format(query, values.data);
+    let connection: mysql.PoolConnection = await (await this.db).getConnection();
 
-    return (await this.db).query(query);
+    // format the query
+    query = connection.format(query, values.data);
+    
+    let result: any = connection.query(query);
+    connection.release();
+
+    return result;
   }
 
   async fetch(table: string, filter: FilterData[]): Promise<any> {
@@ -90,9 +104,15 @@ class Mysql {
       index++;
     }
 
-    query = (await this.db).format(query, values.data);
+    let connection: mysql.PoolConnection = await (await this.db).getConnection();
+
+    // format the query
+    query = connection.format(query, values.data);
     
-    return (await this.db).query(query);
+    let result: any = connection.query(query);
+    connection.release();
+
+    return result;
   }
 
   async delete(table: string, filter: FilterData[]): Promise<any> {
@@ -114,9 +134,15 @@ class Mysql {
       index++;
     }
 
-    query = (await this.db).format(query, values.data);
+    let connection: mysql.PoolConnection = await (await this.db).getConnection();
+
+    // format the query
+    query = connection.format(query, values.data);
     
-    return (await this.db).query(query);
+    let result: any = connection.query(query);
+    connection.release();
+
+    return result;
   }
 
   async update(table: string, data: InsertData[], filter: FilterData[]): Promise<any> {
@@ -152,9 +178,15 @@ class Mysql {
       index++;
     }
 
-    query = (await this.db).format(query, values.r_data.concat(values.data));
+    let connection: mysql.PoolConnection = await (await this.db).getConnection();
 
-    return (await this.db).query(query);
+    // format the query
+    query = connection.format(query, values.r_data.concat(values.data));
+    
+    let result: any = connection.query(query);
+    connection.release();
+
+    return result;
   }
 };
 

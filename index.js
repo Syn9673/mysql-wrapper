@@ -23,11 +23,15 @@ exports.version = exports.Mysql = void 0;
 const mysql = __importStar(require("promise-mysql"));
 const version = "0.1";
 exports.version = version;
+const pool_options = {
+    waitForConnections: true,
+    connectionLimit: 20
+};
 //what the fuck is a bluebird
 class Mysql {
     constructor(options = {}) {
         this.options = options;
-        this.db = mysql.createConnection(options);
+        this.db = mysql.createPool(Object.assign(Object.assign({}, pool_options), this.options));
     }
     async create_table(table_name, table_data) {
         var _a, _b, _c;
@@ -44,7 +48,10 @@ class Mysql {
             }
             ;
         }
-        (await this.db).query(statement);
+        let connection = await (await this.db).getConnection();
+        let result = connection.query(statement);
+        connection.release();
+        return result;
     }
     async insert(table, data) {
         let values = { columns: [], data: [] };
@@ -58,9 +65,12 @@ class Mysql {
         query += ` (${values.columns.map((c) => c).join(', ')})`;
         // add escaped values
         query += ` VALUES (${values.data.map(() => '?').join(', ')})`;
+        let connection = await (await this.db).getConnection();
         // format the query
-        query = (await this.db).format(query, values.data);
-        return (await this.db).query(query);
+        query = connection.format(query, values.data);
+        let result = connection.query(query);
+        connection.release();
+        return result;
     }
     async fetch(table, filter) {
         var _a;
@@ -78,8 +88,12 @@ class Mysql {
             query += `${v} = ? ${index === values.columns.length - 1 ? "" : values.filter[index]} `;
             index++;
         }
-        query = (await this.db).format(query, values.data);
-        return (await this.db).query(query);
+        let connection = await (await this.db).getConnection();
+        // format the query
+        query = connection.format(query, values.data);
+        let result = connection.query(query);
+        connection.release();
+        return result;
     }
     async delete(table, filter) {
         var _a;
@@ -97,8 +111,12 @@ class Mysql {
             query += `${v} = ? ${index === values.columns.length - 1 ? "" : values.filter[index]} `;
             index++;
         }
-        query = (await this.db).format(query, values.data);
-        return (await this.db).query(query);
+        let connection = await (await this.db).getConnection();
+        // format the query
+        query = connection.format(query, values.data);
+        let result = connection.query(query);
+        connection.release();
+        return result;
     }
     async update(table, data, filter) {
         var _a;
@@ -126,8 +144,12 @@ class Mysql {
             query += `${v} = ? ${index === values.columns.length - 1 ? "" : values.filter[index]} `;
             index++;
         }
-        query = (await this.db).format(query, values.r_data.concat(values.data));
-        return (await this.db).query(query);
+        let connection = await (await this.db).getConnection();
+        // format the query
+        query = connection.format(query, values.r_data.concat(values.data));
+        let result = connection.query(query);
+        connection.release();
+        return result;
     }
 }
 exports.Mysql = Mysql;
